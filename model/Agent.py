@@ -6,35 +6,42 @@ from common import Utils, Constants
 class Agent:
     def __init__(self, epsilon):
         self.actions = np.array(Constants.actions, dtype=int)
-        self.feature_weights = np.zeros(shape=(len(self.actions), Constants.num_features))
+        self.feature_weights = np.zeros(shape=(len(Constants.states), self.actions.shape[0]))
         self.epsilon = epsilon
 
-    def reset(self):
-        self.feature_weights = np.zeros(shape=(len(self.actions), Constants.num_features))
+    def set_epsilon(self, epsilon):
+        self.epsilon = epsilon
 
-    def get_action(self, current_state):
+    def reset(self, epsilon):
+        self.feature_weights = np.zeros(shape=(len(Constants.states), self.actions.shape[0]))
+        self.epsilon = epsilon
+
+    def get_action(self, state):
+        # print self.feature_weights
         return np.random.choice(a=self.actions, p=Utils.get_action_distribution(
-            np.argmax(np.dot(self.feature_weights, current_state)), len(self.actions),
+            np.argmax(self.feature_weights[state, :]), len(self.actions),
             self.epsilon))
 
-    def get_action_value(self, current_state, current_action):
-        return np.dot(self.feature_weights[current_action], current_state)
-
     def sarsa_update(self, current_state, current_action, reward, next_state, next_action, lr, gamma):
-        delta = reward + gamma * self.get_action_value(next_state, next_action) - self.get_action_value(current_state,
-                                                                                                        current_action)
-        self.feature_weights[current_action] += lr * delta * current_state
+        delta = reward + gamma * self.feature_weights[next_state][next_action] - self.feature_weights[current_state][
+            current_action]
+        self.feature_weights[current_state][current_action] += lr * delta
 
         pass
+
+    def sarsa_terminal_update(self, current_state, current_action, reward, lr):
+        delta = reward - self.feature_weights[current_state][current_action]
+        self.feature_weights[current_action] += lr * delta
 
     def q_learning_update(self, current_state, current_action, reward, next_state, lr, gamma):
-        max_action_value = np.max(np.dot(self.feature_weights, next_state))
-        current_action_value = self.get_action_value(current_state, current_action)
+        max_action_value = np.max(self.feature_weights[next_state, :])
+        current_action_value = self.feature_weights[current_state, current_action]
 
-        self.feature_weights[current_action] += lr * (reward + gamma * max_action_value - current_action_value) * \
-                                                current_state
-
+        self.feature_weights[current_state][current_action] += lr * (reward + gamma * max_action_value - current_action_value)
         pass
+
+    def get_params(self):
+        return self.feature_weights
 
 
 def main():

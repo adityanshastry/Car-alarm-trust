@@ -2,49 +2,48 @@ import sys
 
 import numpy as np
 from joblib import Parallel, delayed
-
 from common import Trainer, Utils, Constants
 
 
 def main(args):
-    total_trials, num_episodes = 100, 500
+    total_trials, num_episodes = 1, 30
     lr, epsilon, gamma = 0.01, 0.01, 1.0
 
-    if args[0] == "1":
-        print "Running Sarsa with %d jobs" % int(args[1])
-        trial_ranges = Utils.get_trial_splits(total_trials)
-        sarsa_results = Parallel(n_jobs=int(args[1]))(
-            delayed(Trainer.train_sarsa)(observations_file=Constants.observations_file,
-                                         log_crash_prior=Constants.log_crash_prior, alarm_consistency=True,
-                                         num_trials=trial_range, num_episodes=num_episodes, lr=lr, epsilon=epsilon,
-                                         gamma=gamma, total_trials=total_trials)
-            for trial_range in trial_ranges)
-        np.save("../results/sarsa_rewards", np.sum(sarsa_results, axis=0))
+    train_option = int(args[0])
 
-    elif args[0] == "2":
-        print "Running Q-Learning with %d jobs" % int(args[1])
-        trial_ranges = Utils.get_trial_splits(total_trials)
-        q_learning_results = Parallel(n_jobs=int(args[1]))(
-            delayed(Trainer.train_q_learning)(observations_file=Constants.observations_file,
-                                              log_crash_prior=Constants.log_crash_prior, alarm_consistency=True,
-                                              num_trials=trial_range, num_episodes=num_episodes, lr=lr, epsilon=epsilon,
-                                              gamma=gamma, total_trials=total_trials)
+    if train_option == 1:
+        num_jobs, alarm_consistency = int(args[1]), bool(int(args[2]))
+        print "Running Sarsa with %s alarm consistency, and %d jobs" % (str(alarm_consistency), num_jobs)
+        trial_ranges = Utils.get_trial_splits(total_trials, int(total_trials / num_jobs))
+        sarsa_results = Parallel(n_jobs=num_jobs)(
+            delayed(Trainer.train_sarsa)(num_trials=trial_range, num_episodes=num_episodes, lr=lr,
+                                         gamma=gamma, total_trials=total_trials, alarm_consistency=alarm_consistency,
+                                         epsilon=epsilon)
             for trial_range in trial_ranges)
-        np.save("../results/q_learning_rewards", np.sum(q_learning_results, axis=0))
+        np.save(Constants.project_root + "/results/sarsa_rewards_" + str(alarm_consistency),
+                np.sum(sarsa_results, axis=0))
 
-    elif args[0] == "3":
-        sarsa_results = np.loadtxt("results/sarsa_rewards.txt")
-        q_learning_results = np.loadtxt("results/q_learning_rewards.txt")
-        avg_sarsa = np.average(sarsa_results, axis=0)
-        avg_q_learning = np.average(q_learning_results, axis=0)
-        stddev_sarsa = np.std(sarsa_results, axis=0)
-        stddev_q_learning = np.std(q_learning_results, axis=0)
-        print avg_sarsa.shape
-        print avg_q_learning.shape
-        print stddev_sarsa.shape
-        print stddev_q_learning.shape
-        Trainer.plot_rewards_and_episodes(avg_sarsa, stddev_sarsa, "SARSA", "o", "b")
-        Trainer.plot_rewards_and_episodes(avg_q_learning, stddev_q_learning, "Q-Learning", "^", "r")
+    elif train_option == 2:
+        num_jobs, alarm_consistency = int(args[1]), bool(int(args[2]))
+        print "Running Q-Learning with %s alarm consistency, and %d jobs" % (str(alarm_consistency), num_jobs)
+        trial_ranges = Utils.get_trial_splits(total_trials, int(total_trials / num_jobs))
+        q_learning_results = Parallel(n_jobs=num_jobs)(
+            delayed(Trainer.train_sarsa)(num_trials=trial_range, num_episodes=num_episodes, lr=lr,
+                                         gamma=gamma, total_trials=total_trials, alarm_consistency=alarm_consistency,
+                                         epsilon=epsilon)
+            for trial_range in trial_ranges)
+        np.save(Constants.project_root + "/results/q_learning_rewards_" + str(alarm_consistency),
+                np.sum(q_learning_results, axis=0))
+
+    elif train_option == 3:
+        result_true = np.load(Constants.project_root + "/results/q_learning_rewards_True.npy")
+        result_false = np.load(Constants.project_root + "/results/q_learning_rewards_False.npy")
+        avg_true = np.average(result_true, axis=0)
+        avg_false = np.average(result_false, axis=0)
+        stddev_true = np.std(result_true, axis=0)
+        stddev_false = np.std(result_false, axis=0)
+        Trainer.plot_rewards_and_episodes(avg_true, stddev_true, "Q-Learning with Consistent Alarm", "o", "b")
+        Trainer.plot_rewards_and_episodes(avg_false, stddev_false, "Q-Learning with Inconsistent Alarm", "^", "r")
 
 
 if __name__ == '__main__':
